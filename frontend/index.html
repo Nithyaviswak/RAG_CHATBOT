@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocMind — RAG Document Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:       #0e0f11;
+      --ink2:      #14161b;
+      --ink3:      #1c1f28;
+      --edge:      #252832;
+      --edge2:     #30364a;
+      --muted:     #6c7283;
+      --dim:       #3d4155;
+      --text:      #dde1ec;
+      --soft:      #8b91a8;
+      --amber:     #e8a840;
+      --amber-d:   rgba(232,168,64,0.13);
+      --blue:      #4f8ef7;
+      --blue-d:    rgba(79,142,247,0.11);
+      --green:     #3ecf8e;
+      --red:       #f06570;
+      --r:         9px;
+      --rl:        15px;
+      --ease:      0.17s ease;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--ink);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ══════════ STATUS BAR ══════════ */
+    .status-bar {
+      padding: 6px 20px;
+      border-bottom: 1px solid var(--edge);
+      background: var(--ink2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--dim);
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
+    }
+
+    .status-dot.ok  { background: var(--green); box-shadow: 0 0 7px var(--green); }
+    .status-dot.err { background: var(--red);   box-shadow: 0 0 7px var(--red); }
+    .status-dot.checking { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .status-text { color: var(--soft); }
+
+    .status-right {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+    }
+
+    /* ══════════ LAYOUT ══════════ */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ══════════ SIDEBAR ══════════ */
+    .sidebar {
+      width: 272px;
+      min-width: 272px;
+      display: flex;
+      flex-direction: column;
+      background: var(--ink2);
+      border-right: 1px solid var(--edge);
+      overflow: hidden;
+    }
+
+    .brand {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--edge);
+      flex-shrink: 0;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+
+    .brand-gem {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #e8a840, #f06570);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      box-shadow: 0 3px 12px rgba(232,168,64,0.28);
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-family: 'Fraunces', serif;
+      font-size: 19px; font-weight: 700; letter-spacing: -0.4px;
+    }
+
+    .brand-sub {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--dim); margin-left: 42px;
+    }
+
+    /* Upload area */
+    .upload-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 8px;
+      flex-shrink: 0;
+    }
+
+    .upload-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
+    }
+
+    /* ＋ Add Files button */
+    .btn-add {
+      position: relative;
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px;
+      background: var(--amber);
+      border: none; border-radius: 6px;
+      color: #1a1000;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 12px; font-weight: 500;
+      cursor: pointer;
+      transition: all var(--ease);
+      overflow: hidden;
+    }
+
+    .btn-add:hover { background: #f0b84a; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(232,168,64,0.3); }
+    .btn-add:active { transform: translateY(0); }
+
+    .btn-add input {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .btn-add-icon { font-size: 15px; line-height: 1; font-style: normal; }
+
+    /* Drag-drop zone */
+    .drop-zone {
+      margin: 0 14px 6px;
+      border: 1.5px dashed var(--edge2);
+      border-radius: var(--r);
+      padding: 11px 10px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      transition: all var(--ease);
+    }
+
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: var(--amber);
+      background: var(--amber-d);
+    }
+
+    .drop-zone input {
+      position: absolute; inset: 0; opacity: 0;
+      cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .drop-text { font-size: 11.5px; color: var(--soft); }
+    .drop-text strong { color: var(--amber); font-weight: 500; }
+    .drop-formats { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--dim); margin-top: 3px; }
+
+    /* Progress */
+    .prog-wrap { margin: 0 14px 4px; height: 3px; background: var(--ink3); border-radius: 3px; overflow: hidden; display: none; }
+    .prog-fill { height: 100%; background: linear-gradient(90deg, var(--amber), #f06570); border-radius: 3px; transition: width 0.3s ease; width: 0%; }
+    .prog-status { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); text-align: center; padding: 0 14px 5px; min-height: 16px; }
+
+    /* Docs list */
+    .docs-wrap { flex: 1; overflow-y: auto; padding: 6px 14px 12px; }
+
+    .docs-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    }
+
+    .docs-count {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
+    }
+
+    .sel-actions { display: flex; gap: 4px; }
+
+    .btn-tiny {
+      background: none; border: none; font-size: 11px; color: var(--blue);
+      cursor: pointer; padding: 2px 5px; border-radius: 4px;
+      font-family: 'IBM Plex Sans', sans-serif; transition: background var(--ease);
+    }
+
+    .btn-tiny:hover { background: var(--blue-d); }
+
+    .doc-row {
+      display: flex; align-items: flex-start; gap: 7px;
+      padding: 9px 10px; border-radius: var(--r); margin-bottom: 5px;
+      cursor: pointer; border: 1px solid transparent;
+      transition: all var(--ease); position: relative;
+    }
+
+    .doc-row:hover { background: var(--ink3); border-color: var(--edge); }
+
+    .doc-row.on {
+      background: var(--amber-d);
+      border-color: rgba(232,168,64,0.3);
+    }
+
+    .doc-row.on::before {
+      content: '';
+      position: absolute; left: 0; top: 8px; bottom: 8px;
+      width: 2px; background: var(--amber); border-radius: 2px;
+    }
+
+    .doc-cb { width: 14px; height: 14px; accent-color: var(--amber); cursor: pointer; margin-top: 2px; flex-shrink: 0; }
+    .doc-ico { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+    .doc-info { flex: 1; min-width: 0; }
+    .doc-name { font-size: 12px; font-weight: 500; word-break: break-word; line-height: 1.4; }
+    .doc-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+    .chip { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 5px; border-radius: 3px; background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--edge); }
+    .chip-err  { background: rgba(240,101,112,0.12); color: #f7a8ae; border-color: rgba(240,101,112,0.3); }
+    .chip-warn { background: rgba(232,168,64,0.12);  color: var(--amber); border-color: rgba(232,168,64,0.3); }
+
+    .doc-del { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px; flex-shrink: 0; margin-top: -1px; transition: all var(--ease); line-height: 1; }
+    .doc-del:hover { color: var(--red); background: rgba(240,101,112,0.12); }
+
+    .doc-retry { background: none; border: 1px solid var(--edge2); color: var(--amber); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; margin-top: -1px; transition: all var(--ease); line-height: 1; }
+    .doc-retry:hover { background: var(--amber-d); }
+
+    .doc-failed, .doc-pending { opacity: 0.75; cursor: default !important; }
+    .doc-failed:hover, .doc-pending:hover { background: transparent !important; border-color: rgba(232,168,64,0.2) !important; }
+
+    .no-docs { text-align: center; padding: 22px 8px; color: var(--dim); font-size: 12px; line-height: 1.7; }
+    .no-docs-ico { font-size: 26px; display: block; margin-bottom: 8px; opacity: 0.35; }
+
+    /* ══════════ MAIN ══════════ */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    .topbar {
+      padding: 12px 22px;
+      border-bottom: 1px solid var(--edge);
+      background: var(--ink2);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .ctx-row { display: flex; align-items: center; gap: 10px; }
+    .ctx-lbl { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+
+    .ctx-pill { padding: 3px 11px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+    .ctx-pill.on  { background: var(--amber-d); border: 1px solid rgba(232,168,64,0.3); color: var(--amber); }
+    .ctx-pill.off { background: var(--ink3); border: 1px solid var(--edge); color: var(--muted); }
+
+    .btn-clear { background: none; border: 1px solid var(--edge); color: var(--soft); font-size: 12px; font-family: 'IBM Plex Sans', sans-serif; padding: 5px 12px; border-radius: var(--r); cursor: pointer; display: none; align-items: center; gap: 5px; transition: all var(--ease); }
+    .btn-clear:hover { border-color: var(--edge2); color: var(--text); background: var(--ink3); }
+
+    /* Chat */
+    .chat-area { flex: 1; overflow-y: auto; padding: 26px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; }
+    .empty-glyph { font-family: 'Fraunces', serif; font-style: italic; font-size: 68px; font-weight: 300; color: var(--edge2); line-height: 1; margin-bottom: 14px; }
+    .empty-title { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500; color: var(--soft); margin-bottom: 8px; }
+    .empty-sub { font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 320px; }
+    .hint-row { display: flex; flex-direction: column; gap: 7px; margin-top: 20px; }
+    .hint { padding: 7px 15px; border: 1px solid var(--edge); border-radius: 20px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all var(--ease); }
+    .hint:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-d); }
+
+    .msg { display: flex; gap: 11px; animation: msgIn 0.2s ease forwards; }
+    @keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .msg.user { flex-direction: row-reverse; }
+
+    .av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 3px; }
+    .av.ai  { background: linear-gradient(135deg,#e8a840,#f06570); box-shadow: 0 2px 8px rgba(232,168,64,0.22); }
+    .av.usr { background: var(--ink3); border: 1px solid var(--edge2); }
+
+    .msg-body { max-width: 74%; display: flex; flex-direction: column; gap: 7px; }
+    .msg.user .msg-body { align-items: flex-end; }
+
+    .bubble { padding: 11px 15px; font-size: 14px; line-height: 1.75; border-radius: var(--rl); }
+    .bubble.ai  { background: var(--ink3); border: 1px solid var(--edge); border-top-left-radius: 4px; }
+    .bubble.usr { background: var(--blue); color: #fff; border-top-right-radius: 4px; }
+    .bubble.err { background: rgba(240,101,112,0.1); border: 1px solid rgba(240,101,112,0.25); color: #f7a8ae; border-top-left-radius: 4px; }
+
+    .citations { display: flex; flex-wrap: wrap; gap: 5px; }
+    .cite { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: var(--amber-d); border: 1px solid rgba(232,168,64,0.2); color: var(--amber); }
+
+    .dots { display: flex; gap: 5px; padding: 3px 0; }
+    .dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--soft); animation: db 1.3s ease-in-out infinite; }
+    .dots span:nth-child(2){animation-delay:.18s}
+    .dots span:nth-child(3){animation-delay:.36s}
+    @keyframes db{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-7px);opacity:1}}
+
+    /* Input */
+    .input-zone { padding: 12px 22px 0; border-top: 1px solid var(--edge); background: var(--ink2); flex-shrink: 0; }
+
+    .input-box { display: flex; gap: 9px; align-items: flex-end; background: var(--ink3); border: 1.5px solid var(--edge2); border-radius: var(--rl); padding: 9px 9px 9px 15px; transition: border-color var(--ease); }
+    .input-box:focus-within { border-color: var(--amber); }
+
+    .chat-ta { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; line-height: 1.6; resize: none; min-height: 22px; max-height: 140px; overflow-y: auto; }
+    .chat-ta::placeholder { color: var(--dim); }
+
+    .send-btn { width: 36px; height: 36px; background: var(--amber); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; transition: all var(--ease); box-shadow: 0 2px 8px rgba(232,168,64,0.18); }
+    .send-btn:hover { background: #f0b84a; transform: scale(1.06); }
+    .send-btn:disabled { opacity: 0.28; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Footer */
+    .footer {
+      padding: 8px 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--edge);
+      background: var(--ink2);
+      flex-shrink: 0;
+    }
+
+    .footer-stack { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+    .footer-stack-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); }
+
+    .footer-dev { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Sans', sans-serif; }
+    .footer-dev span { color: var(--amber); font-weight: 500; }
+
+    .footer-links { display: flex; align-items: center; gap: 8px; }
+
+    .f-link { display: flex; align-items: center; gap: 5px; color: var(--muted); text-decoration: none; font-size: 11px; font-family: 'IBM Plex Sans', sans-serif; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--edge); transition: all var(--ease); }
+    .f-link:hover { color: var(--text); border-color: var(--edge2); background: var(--ink3); }
+    .f-link svg { width: 12px; height: 12px; fill: currentColor; flex-shrink: 0; }
+
+    /* Toasts */
+    #toasts { position: fixed; top: 14px; right: 14px; z-index: 9999; display: flex; flex-direction: column; gap: 7px; }
+    .toast { padding: 9px 14px; border-radius: var(--r); font-size: 12px; max-width: 290px; display: flex; align-items: center; gap: 7px; animation: tIn 0.18s ease; font-family: 'IBM Plex Sans', sans-serif; }
+    @keyframes tIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+    .toast.ok  { background:#0a2e22; border:1px solid #0f5132; color:#6fdbb5; }
+    .toast.err { background:#2e0a0f; border:1px solid #6b1a22; color:#f7a8ae; }
+    .toast.inf { background:#0c1c3a; border:1px solid #1a3a72; color:#93b9f7; }
+
+    ::-webkit-scrollbar{width:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--edge);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--edge2)}
+  </style>
+</head>
+<body>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-left">
+    <span class="status-dot checking" id="statusDot"></span>
+    <span class="status-text" id="statusText">Connecting to backend…</span>
+  </div>
+  <div class="status-right" id="statusRight">http://localhost:5000/api</div>
+</div>
+
+<div class="layout">
+
+  <!-- ════ SIDEBAR ════ -->
+  <aside class="sidebar">
+
+    <div class="brand">
+      <div class="brand-row">
+        <div class="brand-gem">📖</div>
+        <div class="brand-name">DocMind</div>
+      </div>
+      <div class="brand-sub">RAG · Document Intelligence</div>
+    </div>
+
+    <!-- Upload header -->
+    <div class="upload-head">
+      <span class="upload-label">Documents</span>
+      <button class="btn-add" id="btnAdd" title="Add files">
+        <input type="file" id="addInput" multiple accept=".pdf,.txt,.doc,.docx" />
+        <span class="btn-add-icon">＋</span>
+        <span>Add Files</span>
+      </button>
+    </div>
+
+    <!-- Drag & drop -->
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="dropInput" multiple accept=".pdf,.txt,.doc,.docx" />
+      <div class="drop-text"><strong>Drag &amp; drop</strong> files here</div>
+      <div class="drop-formats">PDF · TXT · DOC · DOCX · max 50 MB</div>
+    </div>
+
+    <!-- Progress -->
+    <div class="prog-wrap" id="progWrap"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-status" id="progStatus"></div>
+
+    <!-- List -->
+    <div class="docs-wrap">
+      <div class="docs-header">
+        <span class="docs-count" id="docsCount">DOCUMENTS (0)</span>
+        <div class="sel-actions">
+          <button class="btn-tiny" onclick="selectAll()">All</button>
+          <button class="btn-tiny" onclick="selectNone()">None</button>
+        </div>
+      </div>
+      <div id="docsList">
+        <div class="no-docs"><span class="no-docs-ico">🗂️</span>No documents yet.<br>Upload files to begin.</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ════ MAIN ════ -->
+  <main class="main">
+
+    <div class="topbar">
+      <div class="ctx-row">
+        <span class="ctx-lbl">Context</span>
+        <span class="ctx-pill off" id="ctxPill">No documents selected</span>
+      </div>
+      <button class="btn-clear" id="btnClear" onclick="clearChat()">↺ Clear Chat</button>
+    </div>
+
+    <div class="chat-area" id="chatArea">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-glyph">"</div>
+        <div class="empty-title">Ask your documents</div>
+        <div class="empty-sub">Upload PDFs or text files, select them from the sidebar,<br>then ask anything — answers include source citations.</div>
+        <div class="hint-row">
+          <div class="hint" onclick="useHint(this)">What is the main topic of this document?</div>
+          <div class="hint" onclick="useHint(this)">Summarize the key points</div>
+          <div class="hint" onclick="useHint(this)">What conclusions are drawn?</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-zone">
+      <div class="input-box">
+        <textarea class="chat-ta" id="chatTA" placeholder="Ask a question about your documents…" rows="1" onkeydown="onKey(event)" oninput="resizeTA(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()" disabled title="Send (Enter)">↑</button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-stack">
+        <span class="footer-stack-dot"></span>
+        GPT-4o-mini · FAISS · LangChain
+      </div>
+
+      <div class="footer-dev">Developed by <span>R NITHYANANDACHARI</span></div>
+
+      <div class="footer-links">
+        <a href="https://github.com/nithyanandachari" target="_blank" rel="noopener" class="f-link">
+          <svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          GitHub
+        </a>
+        <a href="https://linkedin.com/in/nithyanandachari" target="_blank" rel="noopener" class="f-link">
+          <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          LinkedIn
+        </a>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ══════════════════════════════════════
+// CONFIG — update if backend is on a different host/port
+// ══════════════════════════════════════
+const API = (window.API_BASE || window.ENV_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let docs = [];
+let selIds = new Set();
+let busy = false;
+let tctr = 0;
+
+const SID = (() => {
+  let s = sessionStorage.getItem('dm_sid');
+  if (!s) { s = 'sess_' + Math.random().toString(36).slice(2, 11); sessionStorage.setItem('dm_sid', s); }
+  return s;
+})();
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+function toast(msg, type = 'inf', ms = 4000) {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+// ══════════════════════════════════════
+// API
+// ══════════════════════════════════════
+async function api(path, opts = {}) {
+  const isForm = opts.body instanceof FormData;
+  const isJson = opts.body && typeof opts.body === 'string';
+  // Only set Content-Type for actual JSON bodies — never for GET or FormData
+  const headers = isJson ? { 'Content-Type': 'application/json' } : {};
+  const r = await fetch(API + path, { headers, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// ══════════════════════════════════════
+// BACKEND STATUS CHECK
+// ══════════════════════════════════════
+async function checkBackend() {
+  const dot  = document.getElementById('statusDot');
+  const txt  = document.getElementById('statusText');
+  const right = document.getElementById('statusRight');
+
+  dot.className = 'status-dot checking';
+  txt.textContent = 'Connecting to backend…';
+
+  try {
+    await api('/health');
+    dot.className = 'status-dot ok';
+    txt.textContent = 'Backend connected';
+    right.textContent = API;
+    await loadDocs();
+  } catch (e) {
+    dot.className = 'status-dot err';
+    txt.textContent = 'Backend offline — start Flask server';
+    right.textContent = API;
+    toast('⚠️ Cannot reach backend at ' + API + '. Start your Flask server.', 'err', 6000);
+  }
+}
+
+// ══════════════════════════════════════
+// DOCUMENTS
+// ══════════════════════════════════════
+async function loadDocs() {
+  try {
+    const data = await api('/documents');
+    docs = data.documents || [];
+    renderDocs();
+  } catch (e) {
+    toast('Failed to load documents: ' + e.message, 'err');
+  }
+}
+
+function renderDocs() {
+  document.getElementById('docsCount').textContent = `DOCUMENTS (${docs.length})`;
+  const list = document.getElementById('docsList');
+
+  if (!docs.length) {
+    list.innerHTML = `<div class="no-docs"><span class="no-docs-ico">🗂️</span>No documents yet.<br>Upload files to begin.</div>`;
+    updateCtx(); return;
+  }
+
+  list.innerHTML = docs.map(d => {
+    const on     = selIds.has(d.id);
+    const status = d.status || (d.vectorised ? 'processed' : 'saved');
+    // Backend marks completed docs as "processed"; older payloads may use "ready".
+    const ready  = status === 'processed' || status === 'ready' || d.vectorised === true;
+    const saved  = status === 'saved' && !ready;  // file exists but not vectorised
+
+    const ico = d.filename.endsWith('.pdf') ? '📄'
+      : d.filename.endsWith('.txt') ? '📃'
+      : (d.filename.endsWith('.doc') || d.filename.endsWith('.docx')) ? '📝' : '📁';
+
+    const sz = d.size > 1048576
+      ? (d.size / 1048576).toFixed(1) + ' MB'
+      : Math.round(d.size / 1024) + ' KB';
+
+    const chips = ready
+      ? `<span class="chip">${d.chunk_count} chunks</span>
+         <span class="chip">${d.page_count}p</span>
+         <span class="chip">${sz}</span>`
+      : `<span class="chip chip-warn">⚠ not processed — add API key &amp; retry</span>
+         <span class="chip">${sz}</span>`;
+
+    const retryBtn = saved
+      ? `<button class="doc-retry" onclick="retryDoc('${d.id}', event)" title="Retry processing">↺</button>`
+      : '';
+
+    return `<div class="doc-row ${on && ready ? 'on' : ''} ${!ready ? 'doc-pending' : ''}"
+                 onclick="${ready ? `toggle('${d.id}')` : ''}">
+      <input type="checkbox" class="doc-cb" ${on && ready ? 'checked' : ''} ${!ready ? 'disabled' : ''}
+             onchange="toggle('${d.id}')" onclick="event.stopPropagation()">
+      <div class="doc-ico">${ico}</div>
+      <div class="doc-info">
+        <div class="doc-name">${esc(d.filename)}</div>
+        <div class="doc-chips">${chips}</div>
+      </div>
+      ${retryBtn}
+      <button class="doc-del" onclick="delDoc('${d.id}', event)" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+
+  updateCtx();
+  updateBtn();
+}
+
+function toggle(id) {
+  if (selIds.has(id)) selIds.delete(id); else selIds.add(id);
+  renderDocs();
+}
+
+function selectAll()  { docs.forEach(d => selIds.add(d.id));  renderDocs(); updateBtn(); }
+function selectNone() { selIds.clear(); renderDocs(); updateBtn(); }
+
+async function delDoc(id, e) {
+  e.stopPropagation();
+  try {
+    await api(`/document/${id}`, { method: 'DELETE' });
+    selIds.delete(id);
+    await loadDocs();
+    toast('Document deleted', 'inf');
+  } catch (e) { toast('Delete failed: ' + e.message, 'err'); }
+}
+
+async function retryDoc(id, e) {
+  e.stopPropagation();
+  toast('Retrying processing…', 'inf', 2000);
+  try {
+    const data = await api(`/document/${id}/process`, { method: 'POST' });
+    await loadDocs();
+    toast(`✓ ${data.document.filename} — ready!`, 'ok');
+  } catch (err) {
+    toast('Retry failed: ' + err.message, 'err');
+  }
+}
+
+function updateCtx() {
+  const pill = document.getElementById('ctxPill');
+  if (!selIds.size) {
+    pill.className = 'ctx-pill off';
+    pill.textContent = 'No documents selected';
+  } else {
+    pill.className = 'ctx-pill on';
+    pill.textContent = `${selIds.size} doc${selIds.size > 1 ? 's' : ''} active`;
+  }
+}
+
+// ══════════════════════════════════════
+// UPLOAD
+// ══════════════════════════════════════
+async function handleFiles(files) {
+  const exts  = ['.pdf', '.txt', '.doc', '.docx'];
+  const valid = Array.from(files).filter(f => exts.some(x => f.name.toLowerCase().endsWith(x)));
+  const bad   = Array.from(files).filter(f => !exts.some(x => f.name.toLowerCase().endsWith(x)));
+
+  if (bad.length) toast(`Skipped ${bad.length} unsupported file(s)`, 'err');
+  if (!valid.length) return;
+
+  const wrap   = document.getElementById('progWrap');
+  const fill   = document.getElementById('progFill');
+  const status = document.getElementById('progStatus');
+
+  wrap.style.display = 'block';
+  fill.style.width = '0%';
+  let done = 0;
+
+  for (const f of valid) {
+    status.textContent = `Uploading ${f.name}…`;
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+
+      const r = await fetch(API + '/upload', { method: 'POST', body: fd });
+      let data = {};
+      try { data = await r.json(); } catch(_) {}
+
+      if (r.status === 201) {
+        toast(`✓ ${data.document.filename} — ${data.document.chunk_count} chunks`, 'ok');
+      } else if (r.status === 202) {
+        // File saved but not vectorised (no API key yet)
+        toast(`📁 ${data.document.filename} saved — add GEMINI_API_KEY to process`, 'inf', 6000);
+      } else {
+        throw new Error(data.error || `Server error ${r.status}`);
+      }
+    } catch (err) {
+      toast(`Upload failed: ${err.message}`, 'err');
+    }
+
+    done++;
+    fill.style.width = Math.round((done / valid.length) * 100) + '%';
+  }
+
+  // Always reload docs list after all uploads, success or fail
+  status.textContent = 'Refreshing list…';
+  await loadDocs();
+
+  setTimeout(() => {
+    wrap.style.display = 'none';
+    fill.style.width = '0%';
+    status.textContent = '';
+  }, 600);
+}
+
+// ══════════════════════════════════════
+// CHAT
+// ══════════════════════════════════════
+function updateBtn() {
+  const ta = document.getElementById('chatTA');
+  document.getElementById('sendBtn').disabled = busy || !ta.value.trim() || !selIds.size;
+}
+
+function resizeTA(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  updateBtn();
+}
+
+function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
+
+function useHint(el) {
+  const ta = document.getElementById('chatTA');
+  ta.value = el.textContent.trim();
+  ta.focus(); resizeTA(ta);
+}
+
+async function sendMsg() {
+  const ta = document.getElementById('chatTA');
+  const q = ta.value.trim();
+  if (!q || busy || !selIds.size) return;
+
+  document.getElementById('emptyState')?.remove();
+  addMsg('user', q);
+  ta.value = ''; resizeTA(ta);
+  busy = true; updateBtn();
+  document.getElementById('btnClear').style.display = 'flex';
+
+  const tid = addTyping();
+
+  try {
+    const data = await api('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ question: q, doc_ids: [...selIds], session_id: SID })
+    });
+    removeTyping(tid);
+    addMsg('assistant', data.answer, data.sources || []);
+  } catch (e) {
+    removeTyping(tid);
+    addMsgErr('⚠️ ' + e.message);
+    toast('Error: ' + e.message, 'err');
+  }
+
+  busy = false; updateBtn();
+}
+
+function addMsg(role, text, sources = []) {
+  const area = document.getElementById('chatArea');
+  const d = document.createElement('div');
+  d.className = `msg ${role}`;
+
+  const src = sources.length
+    ? `<div class="citations">${sources.map(s =>
+        `<span class="cite">📎 ${esc(s.filename)} — pg.${s.page} · ¶${s.chunk_index}</span>`
+      ).join('')}</div>`
+    : '';
+
+  d.innerHTML = `
+    <div class="av ${role === 'assistant' ? 'ai' : 'usr'}">${role === 'assistant' ? '📖' : '👤'}</div>
+    <div class="msg-body">
+      <div class="bubble ${role === 'assistant' ? 'ai' : 'usr'}">${esc(text)}</div>
+      ${src}
+    </div>`;
+  area.appendChild(d);
+  area.scrollTop = area.scrollHeight;
+}
+
+function addMsgErr(text) {
+  const area = document.getElementById('chatArea');
+  const d = document.createElement('div');
+  d.className = 'msg';
+  d.innerHTML = `<div class="av ai">📖</div><div class="msg-body"><div class="bubble err">${esc(text)}</div></div>`;
+  area.appendChild(d);
+  area.scrollTop = area.scrollHeight;
+}
+
+function addTyping() {
+  const id = 'ty_' + (++tctr);
+  const area = document.getElementById('chatArea');
+  const d = document.createElement('div'); d.id = id; d.className = 'msg';
+  d.innerHTML = `<div class="av ai">📖</div><div class="msg-body"><div class="bubble ai"><div class="dots"><span></span><span></span><span></span></div></div></div>`;
+  area.appendChild(d);
+  area.scrollTop = area.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) { document.getElementById(id)?.remove(); }
+
+async function clearChat() {
+  try {
+    await api('/reset-memory', { method: 'POST', body: JSON.stringify({ session_id: SID }) });
+    const area = document.getElementById('chatArea');
+    area.innerHTML = '';
+    const es = document.createElement('div');
+    es.id = 'emptyState'; es.className = 'empty-state';
+    es.innerHTML = `
+      <div class="empty-glyph">"</div>
+      <div class="empty-title">Ask your documents</div>
+      <div class="empty-sub">Upload PDFs or text files, select them from the sidebar,<br>then ask anything — answers include source citations.</div>
+      <div class="hint-row">
+        <div class="hint" onclick="useHint(this)">What is the main topic of this document?</div>
+        <div class="hint" onclick="useHint(this)">Summarize the key points</div>
+        <div class="hint" onclick="useHint(this)">What conclusions are drawn?</div>
+      </div>`;
+    area.appendChild(es);
+    document.getElementById('btnClear').style.display = 'none';
+    toast('Chat history cleared', 'inf');
+  } catch (e) { toast('Clear failed: ' + e.message, 'err'); }
+}
+
+// ══════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════
+// INIT — wire everything after DOM ready
+// ══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Textarea: update send button on every keystroke
+  document.getElementById('chatTA').addEventListener('input', updateBtn);
+
+  // ＋ Add Files button
+  const addInput = document.getElementById('addInput');
+  addInput.addEventListener('change', e => {
+    if (e.target.files.length) handleFiles(e.target.files);
+    addInput.value = '';
+  });
+
+  // Drag & drop zone hidden input
+  const dropInput = document.getElementById('dropInput');
+  dropInput.addEventListener('change', e => {
+    if (e.target.files.length) handleFiles(e.target.files);
+    dropInput.value = '';
+  });
+
+  // Drag & drop zone itself
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('dragging'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragging'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragging');
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+
+  // Initial backend check + load docs
+  checkBackend();
+});
+</script>
+</body>
+</html>
