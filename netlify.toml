@@ -1,0 +1,16 @@
+[build]
+  # Tell Netlify to look inside the frontend folder
+  base = "frontend"
+  
+  # If you are using React/Vite, use 'npm run build'
+  # If it's just HTML/CSS, leave this empty ""
+  command = "npm run build"
+  
+  # This is the folder that actually gets put on the internet
+  # Usually 'dist' for Vite or 'build' for Create-React-App
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
