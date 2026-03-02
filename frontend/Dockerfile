@@ -1,8 +1,5 @@
 FROM nginx:1.27-alpine
 
-docker compose down
-docker compose up --build
-
 WORKDIR /usr/share/nginx/html
 
 COPY index.html .

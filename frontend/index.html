@@ -381,7 +381,7 @@
     <span class="status-dot checking" id="statusDot"></span>
     <span class="status-text" id="statusText">Connecting to backend…</span>
   </div>
-  <div class="status-right" id="statusRight">http://localhost:5000/api</div>
+  <div class="status-right" id="statusRight">https://rag-chatbot-53e0.onrender.com/api</div>
 </div>
 
 <div class="layout">
@@ -495,7 +495,11 @@
 // ══════════════════════════════════════
 // CONFIG — update if backend is on a different host/port
 // ══════════════════════════════════════
-const API = (window.API_BASE || window.ENV_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+const API_PLACEHOLDER = '__API_URL__';
+const DEFAULT_API_ORIGIN = 'https://rag-chatbot-53e0.onrender.com/';
+const rawApi = (window.API_BASE || window.ENV_API_URL || API_PLACEHOLDER).trim();
+const apiBase = (rawApi === API_PLACEHOLDER ? DEFAULT_API_ORIGIN : rawApi).replace(/\/$/, '');
+const API = apiBase.endsWith('/api') ? apiBase : `${apiBase}/api`;
 
 // ══════════════════════════════════════
 // STATE
@@ -556,9 +560,9 @@ async function checkBackend() {
     await loadDocs();
   } catch (e) {
     dot.className = 'status-dot err';
-    txt.textContent = 'Backend offline — start Flask server';
+    txt.textContent = 'Backend offline';
     right.textContent = API;
-    toast('⚠️ Cannot reach backend at ' + API + '. Start your Flask server.', 'err', 6000);
+    toast('⚠️ Cannot reach backend at ' + API + '.', 'err', 6000);
   }
 }
 
